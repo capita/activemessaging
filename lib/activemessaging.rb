@@ -6,7 +6,6 @@ if defined?(Rails::Railtie)
 end
 
 module ActiveMessaging
-
   ROOT = File.expand_path(File.join(File.dirname(__FILE__), '..'))
 
   # Used to indicate that the processing for a thread shoud complete
@@ -39,7 +38,7 @@ module ActiveMessaging
   end
 
   def self.app_env
-    @@app_env  ||= (ENV['APP_ENV']  || (defined?(::Rails) && ::Rails.env)  || ENV['RAILS_ENV']  || 'development')
+    @@app_env ||= (ENV['APP_ENV'] || (defined?(::Rails) && ::Rails.env) || ENV['RAILS_ENV'] || 'development')
   end
 
   def self.load_extensions
@@ -52,7 +51,7 @@ module ActiveMessaging
     require 'activemessaging/trace_filter'
 
     # load all under the adapters dir 
-    Dir[File.join(ROOT, 'lib', 'activemessaging', 'adapters', '*.rb')].each do |a| 
+    Dir[File.join(ROOT, 'lib', 'activemessaging', 'adapters', '*.rb')].each do |a|
       begin
         adapter_name = File.basename(a, ".rb")
         require 'activemessaging/adapters/' + adapter_name
@@ -67,7 +66,7 @@ module ActiveMessaging
     begin
       load path
     rescue MissingSourceFile
-      logger.error "ActiveMessaging: no '#{path}' file to load"
+      # logger.error "ActiveMessaging: no '#{path}' file to load"
     rescue
       raise $!, " ActiveMessaging: problems trying to load '#{path}': \n\t#{$!.message}"
     end
@@ -87,8 +86,8 @@ module ActiveMessaging
   def self.reload_activemessaging
     # this is resetting the messaging.rb
     ActiveMessaging::Gateway.filters = []
-    ActiveMessaging::Gateway.named_destinations = {}
-    ActiveMessaging::Gateway.processor_groups = {}
+    ActiveMessaging::Gateway.named_destinations = { }
+    ActiveMessaging::Gateway.processor_groups = { }
 
     # now load the config
     load_config
@@ -98,7 +97,7 @@ module ActiveMessaging
   def self.load_activemessaging
     load_extensions
     load_config
-    load_processors
+    load_processors(false)
   end
 
   def self.start
@@ -124,9 +123,19 @@ module ActiveMessaging
 
     Gateway.start
   end
-
 end
 
 if !defined?(Rails::Railtie)
   ActiveMessaging.load_activemessaging
+
+  if defined? Rails
+    require 'dispatcher' unless defined?(::Dispatcher)
+
+    # add processors and config to on_prepare if supported (rails 1.2+)
+    if ::Dispatcher.respond_to? :to_prepare
+      ::Dispatcher.to_prepare :activemessaging do
+        ActiveMessaging.reload_activemessaging
+      end
+    end
+  end
 end
